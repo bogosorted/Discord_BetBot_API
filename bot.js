@@ -10,16 +10,17 @@ const serverDbPath = "servers_db/";
 async function AdmCommands(command,message,args)
 {
   if(message.member.hasPermission('ADMINISTRATOR'))
-  {
-    switch (command){
-      case "addcoin":
+    {
+      switch (command){
+        case "addcoin":
 
-        value = args.shift()
+          value = args.shift();
+          mentionedUser = args.shift();
 
-        if(!isNaN(value))
-        {
-          AddCoinTo(message,value,args);
-        }
+          if(!isNaN(value))
+          {
+            AddCoinTo(message,value,mentionedUser);
+          }
 
         break;
     }
@@ -27,16 +28,21 @@ async function AdmCommands(command,message,args)
 }
 
 function GetUserFromMention(mention) {
-  
+
+  if(typeof mention === 'undefined')return;
+
 	if (mention.startsWith('<@') && mention.endsWith('>')) {
 		mention = mention.slice(2, -1);
 
 		if (mention.startsWith('!')) {
 			mention = mention.slice(1);
 		}
-
-		return mention;
 	}
+  return mention;
+}
+function UserIdToMention(userid)
+{
+  return `<@${userid}>`
 }
 
 async function ClientCommands(command,message,args)
@@ -47,12 +53,9 @@ async function ClientCommands(command,message,args)
        
         if(!fs.existsSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`))
         {
-          let userStatus = { 
-            aragonCoins:config.initialAragonCoins
-          };
+          let userStatus = {aragonCoins:config.initialAragonCoins};
           data = fs.writeFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, JSON.stringify(userStatus));
-        }
-        
+        }       
         else 
         {
           data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, 'utf-8');
@@ -60,11 +63,48 @@ async function ClientCommands(command,message,args)
 
           walletValue = JSON.parse(data).aragonCoins;
           await message.channel.send(`You have ${walletValue} aragon coins!`);
+
       break;
       
       case "startbet":
 
-      break;
+        break;
+
+      case "deposit":
+
+        value = args.shift()
+        data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, 'utf-8');
+        userData = JSON.parse(data);
+
+        if(!isNaN(value))
+        {
+
+          if(value > 0)
+          {
+
+            if(userData.aragonCoins >= value && value > 0)           
+            {
+              mentionedUser = args.shift();
+
+              AddCoinTo(message,value,mentionedUser);
+              AddCoinTo(message,-value,message.member.user.id);
+            }
+
+            else
+            {
+              await message.channel.send(`you didn't have enougth aragonCoins to deposit`);
+            }
+
+          }
+
+          else
+          {
+            await message.channel.send('negative values not allowed');
+          }
+
+        }
+
+        break;
 
       case "ping":
         var m = await message.channel.send("Ping?");
@@ -96,23 +136,24 @@ function CheckIfJSONExist(path)
     
   }   
 }
-async function AddCoinTo(message,value,args)
+async function AddCoinTo(message,value,mentionedUser)
 {
-  mentionedUser = args.shift();
   receiverId = GetUserFromMention(mentionedUser);
 
-  CheckIfDirExist(`${serverDbPath}${message.guild.id}`);
-  CheckIfJSONExist(`${serverDbPath}${message.guild.id}/${receiverId}.json`);
-  
-  console.log(receiverId + " has won:" + value + " aragonCoin");
+  if(message.guild.member(receiverId))
+  {
+    CheckIfJSONExist(`${serverDbPath}${message.guild.id}/${receiverId}.json`);
 
-  data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${receiverId}.json`, 'utf-8');
-  userData = JSON.parse(data);
-  userData.aragonCoins += parseFloat(value);  
 
-  await message.channel.send(`${mentionedUser} has ${userData.aragonCoins} aragon coins now!`);
+    data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${receiverId}.json`, 'utf-8');
+    userData = JSON.parse(data);
+    userData.aragonCoins += parseFloat(value);  
+    fs.writeFileSync(`${serverDbPath}${message.guild.id}/${receiverId}.json`, JSON.stringify(userData));
 
-  fs.writeFileSync(`${serverDbPath}${message.guild.id}/${receiverId}.json`, JSON.stringify(userData));
+    await message.channel.send(`${UserIdToMention(receiverId)} has ${userData.aragonCoins} aragon coins now!`);
+
+  }
+
 }
 
 client.on("ready",()=>
@@ -137,7 +178,7 @@ client.on("message",async message =>
 {
   if(message.author.bot) return;
   if(message.channel.type == "dm") return;
-
+  if(!message.content.startsWith(config.prefix)) return;
   const args = message.content.slice(config.prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
   var data;
