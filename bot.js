@@ -5,6 +5,7 @@ const config = require("./config.json");
 
 const fs = require('fs');
 const path = require("path");
+const { type } = require("os");
 const serverDbPath = "servers_db/";
 
 async function AdmCommands(command,message,args)
@@ -44,25 +45,28 @@ function UserIdToMention(userid)
 {
   return `<@${userid}>`
 }
+function receiveAcountValue(message)
+{
+  
+  if(!fs.existsSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`))
+  {
+    let userStatus = {aragonCoins:config.initialAragonCoins};
+    data = fs.writeFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, JSON.stringify(userStatus));
+  }       
+  else 
+  {
+    data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, 'utf-8');
+  }   
 
+  return (JSON.parse(data).aragonCoins);
+}
 async function ClientCommands(command,message,args)
 {
     switch(command)
     {
       case "mywallet":
-       
-        if(!fs.existsSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`))
-        {
-          let userStatus = {aragonCoins:config.initialAragonCoins};
-          data = fs.writeFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, JSON.stringify(userStatus));
-        }       
-        else 
-        {
-          data = fs.readFileSync(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`, 'utf-8');
-        }   
-
-          walletValue = JSON.parse(data).aragonCoins;
-          await message.channel.send(`You have ${walletValue} aragon coins!`);
+          walletvalue = receiveAcountValue(message);
+          await message.channel.send(`You have ${walletvalue} aragon coins!`);
 
       break;
       
@@ -104,21 +108,99 @@ async function ClientCommands(command,message,args)
 
         }
 
-        break;
-
+      break;
+      case "magnata":
+        CheckIfTop5(message,receiveAcountValue(message),message.member.user)
+        Magnata(message);
+      break;
       case "ping":
         var m = await message.channel.send("Ping?");
         m.edit(`Ping! The current latency its ${m.createdTimestamp - message.createdTimestamp}`);
       break;
   }
 }
+async function Magnata(message)
+{
+  data = fs.readFileSync(`${serverDbPath}${message.guild.id}/top5.json`, 'utf-8');
+  const magnatesData = JSON.parse(data); 
+  formatedMagnatas = "";
+  for(row = 0; row < magnatesData.length;row++)
+  {
+    line = `${row + 1}º  ${magnatesData[row][0].username} . . . . . . . . . . . . . . . . . . . . . . `;
+    line = line.substring(0,50);
+    formatedMagnatas += `${line}${magnatesData[row][1]} aragonCoins \n`;
 
+  }
+
+ await message.channel.send("```javascript\n                         TOP 5 Magnatas            \n" + formatedMagnatas + "```");
+}
+function CheckIfTop5Exists(guild)
+{
+  const top5 = [];
+
+  const usersValues = guild.members.cache.map(member =>member)
+  if(!fs.existsSync(`${serverDbPath}${guild.id}/top5.json`))
+  {  
+    index = 5;
+    for(var i = 0; i <= usersValues.length; i++) 
+    {
+      
+      if(!usersValues[i].user.bot)
+      {
+        top5.push([usersValues[i].user,config.initialAragonCoins]);
+        index--;
+      }
+      if(index<=0)
+      {
+        break;
+      }
+      
+    }
+    data = fs.writeFileSync(`${serverDbPath}${guild.id}/top5.json`, JSON.stringify(top5));
+  }
+}
+function CheckIfTop5(message,userValue,userMember)
+{
+  CheckIfTop5Exists(message.guild);
+
+  data = fs.readFileSync(`${serverDbPath}${message.guild.id}/top5.json`, 'utf-8');
+  const actualtop5 = JSON.parse(data);
+
+  for (var row=0; row<actualtop5.length; row++) 
+  {
+    if(actualtop5[row][0].id === userMember.id) 
+    {
+      actualtop5[row][1] = userValue;
+      break;  
+    } 
+    else if(actualtop5[row][1] < userValue)
+    { 
+      let member = actualtop5.find(object => object[0].id === userMember.id)
+      if(member !== undefined)
+      {
+        actualtop5[actualtop5.indexOf(member)][1] = userValue;
+      }
+      else
+      {
+        actualtop5.push([userMember,userValue]);
+      }
+      break;
+    }
+  }
+
+  actualtop5.sort((a, b) => b[1] - a[1]);
+  actualtop5.length = 5;
+  
+  data = fs.writeFileSync(`${serverDbPath}${message.guild.id}/top5.json`, JSON.stringify(actualtop5));
+   
+}
+ 
 function CheckIfDirExist(path)
 {
   if (!fs.existsSync(path))
-        {
-          fs.mkdirSync(path);
-        }
+    {
+       fs.mkdirSync(path);
+    }
 }
 function CheckIfJSONExist(path)
 {
@@ -150,7 +232,10 @@ async function AddCoinTo(message,value,mentionedUser)
     userData.aragonCoins += parseFloat(value);  
     fs.writeFileSync(`${serverDbPath}${message.guild.id}/${receiverId}.json`, JSON.stringify(userData));
 
+    CheckIfTop5(message,userData.aragonCoins,message.guild.members.cache.get(receiverId));
+
     await message.channel.send(`${UserIdToMention(receiverId)} has ${userData.aragonCoins} aragon coins now!`);
+
 
   }
 
@@ -164,12 +249,17 @@ client.on("ready",()=>
 
 client.on("guildCreate",guild =>
 {
+  var data;
+  CheckIfTop5Exists(guild);
+  CheckIfDirExist(`${serverDbPath}${guild.id}`);
   console.log(`O bot entrou no servidor: ${guild.name} (id:${guild.id}). População: ${guild.memberCount} membros!`);
   client.user.setActivity(`Eu estou em ${client.guilds.cache.size} servidores`);
+
 });
 
 client.on("guildDelete",guild =>
 {
+  fs.rmdirSync(`${serverDbPath}${guild.id}`,{ recursive: true });
   console.log(`O bot foi removido do servidor: ${guild.name}(id:${guild.id})`);
   client.user.setActivity(`Serving ${client.guilds.cache.size} servers`);
 });
@@ -183,9 +273,7 @@ client.on("message",async message =>
   const command = args.shift().toLowerCase();
   var data;
   
-  CheckIfDirExist(`${serverDbPath}${message.guild.id}`);
   CheckIfJSONExist(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`);
-
   ClientCommands(command,message,args);
   AdmCommands(command,message,args);
 
