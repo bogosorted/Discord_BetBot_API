@@ -119,6 +119,23 @@ async function ClientCommands(command,message,args)
       break;
   }
 }
+function test(message)
+{
+  const exampleEmbed = new Discord.MessageEmbed()
+	.setColor('#FC1B00')
+	.setTitle('nome do bolão')
+	.setURL('https://github.com/gafds/Discord_BetBot_API')
+	.setAuthor('SWEEPSTAKE', 'https://cdn.discordapp.com/app-icons/861385571833085952/1200636fdb1c320f41069efa1900727d.png', 'https://github.com/gafds/Discord_BetBot_API')
+	.setDescription(`${message.member.user.username} wants do to a sweepstake`)
+	.setThumbnail('https://cdn.discordapp.com/app-icons/861385571833085952/1200636fdb1c320f41069efa1900727d.png')
+	.addFields(
+		{ name: 'Regular field title', value: 'Some value here' },
+		{ name: '\u200B', value: '\u200B' },
+		{ name: 'Inline field title', value: 'Some value here', inline: true },
+		{ name: 'Inline field title', value: 'Some value here', inline: true },
+	);
+  message.channel.send(exampleEmbed);
+}
 async function Magnata(message)
 {
   data = fs.readFileSync(`${serverDbPath}${message.guild.id}/top5.json`, 'utf-8');
@@ -132,7 +149,7 @@ async function Magnata(message)
 
   }
 
- await message.channel.send("```javascript\n                         TOP 5 Magnatas            \n" + formatedMagnatas + "```");
+ await message.channel.send(">>> ```javascript\n                         TOP 5 Magnatas            \n" + formatedMagnatas + "```");
 }
 function CheckIfTop5Exists(guild)
 {
@@ -182,7 +199,7 @@ function CheckIfTop5(message,userValue,userMember)
       }
       else
       {
-        actualtop5.push([userMember,userValue]);
+        actualtop5.push([message.guild.members.cache.get(userMember.id).user,userValue]);
       }
       break;
     }
@@ -272,7 +289,7 @@ client.on("message",async message =>
   const args = message.content.slice(config.prefix.length).trim().split(/ +/g);
   const command = args.shift().toLowerCase();
   var data;
-  
+  //test(message);
   CheckIfJSONExist(`${serverDbPath}${message.guild.id}/${message.member.user.id}.json`);
   ClientCommands(command,message,args);
   AdmCommands(command,message,args);
